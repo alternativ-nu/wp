@@ -1,0 +1,64 @@
+version: '3.7'
+
+volumes:
+  data_certs:
+  data_vhost:
+  data_html:
+  wordpress:
+  db:
+
+services:
+
+  proxy:
+    image: jwilder/nginx-proxy:alpine
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - data_certs:/etc/nginx/certs:ro
+      - data_vhost:/etc/nginx/vhost.d
+      - data_html:/usr/share/nginx/html
+    labels:
+      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy"
+
+  letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - data_certs:/etc/nginx/certs
+      - data_vhost:/etc/nginx/vhost.d
+      - data_html:/usr/share/nginx/html
+
+  mitm:
+    image: nginx:alpine
+    environment:
+      - VIRTUAL_HOST=apps.recraft.me
+      - HTTPS_METHOD=noredirect
+      - LETSENCRYPT_HOST=apps.recraft.me
+      - LETSENCRYPT_EMAIL=roger@recraft.me
+    volumes:
+      - ./mitm.conf:/etc/nginx/conf.d/app.conf:ro
+
+  wordpress:
+    image: knittl/woocommerce
+    restart: always
+    env_file: env-retro
+    volumes:
+      - wordpress:/var/www/html
+      - ./plugins:/var/www/html/wp-content/plugins
+      - ./uploads:/var/www/html/wp-content/uploads
+
+  db:
+    image: mysql:5.7
+    restart: always
+    env_file: env-retro
+    volumes:
+      - db:/var/lib/mysql
+
+  backup:
+    image: alpine
+    env_file: env-retro
+    volumes:
+      - wordpress:/var/www/html
+      - ./backups:/tmp
